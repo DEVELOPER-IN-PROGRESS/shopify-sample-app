@@ -1,3 +1,5 @@
+import { gql } from "graphql-request";
+
 import { useState, useCallback } from "react";
 import {
   Banner,
@@ -30,6 +32,48 @@ import { useAuthenticatedFetch, useShopifyQuery } from "../hooks";
 import { useForm, useField, notEmptyString } from "@shopify/react-form";
 
 const NO_DISCOUNT_OPTION = { label: "No discount", value: "" };
+const DISCOUNTS_QUERY = gql`
+  query discounts($first: Int!) {
+    codeDiscountNodes(first: $first) {
+      edges {
+        node {
+          id
+          codeDiscount {
+            ... on DiscountCodeBasic {
+              codes(first: 1) {
+                edges {
+                  node {
+                    code
+                  }
+                }
+              }
+            }
+            ... on DiscountCodeBxgy {
+              codes(first: 1) {
+                edges {
+                  node {
+                    code
+                  }
+                }
+              }
+            }
+            ... on DiscountCodeFreeShipping {
+              codes(first: 1) {
+                edges {
+                  node {
+                    code
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+
 
 /*
   The discount codes available in the store.
@@ -52,7 +96,41 @@ export function QRCodeForm({ QRCode: InitialQRCode }) {
 
     It will be replaced by a different function when the frontend is connected to the backend.
   */
-  const onSubmit = (body) => console.log("submit", body);
+  // const onSubmit = (body) => console.log("submit", body);
+  const onSubmit = useCallback(
+    (body) => {
+      (async () => {
+        const parsedBody = body;
+        parsedBody.destination = parsedBody.destination[0];
+        const QRCodeId = QRCode?.id;
+        /* construct the appropriate URL to send the API request to based on whether the QR code is new or being updated */
+        const url = QRCodeId ? `/api/qrcodes/${QRCodeId}` : "/api/qrcodes";
+        /* a condition to select the appropriate HTTP method: PATCH to update a QR code or POST to create a new QR code */
+        const method = QRCodeId ? "PATCH" : "POST";
+        /* use (authenticated) fetch from App Bridge to send the request to the API and, if successful, clear the form to reset the ContextualSaveBar and parse the response JSON */
+        const response = await fetch(url, {
+          method,
+          body: JSON.stringify(parsedBody),
+          headers: { "Content-Type": "application/json" },
+        });
+        if (response.ok) {
+          makeClean();
+          const QRCode = await response.json();
+          /* if this is a new QR code, then save the QR code and navigate to the edit page; this behavior is the standard when saving resources in the Shopify admin */
+          if (!QRCodeId) {
+            navigate(`/qrcodes/${QRCode.id}`);
+            /* if this is a QR code update, update the QR code state in this component */
+          } else {
+            setQRCode(QRCode);
+          }
+        }
+      })();
+      return { status: "success" };
+    },
+    [QRCode, setQRCode]
+  );
+
+
 
   /*
     Sets up the form state with the useForm hook.
@@ -147,8 +225,25 @@ export function QRCodeForm({ QRCode: InitialQRCode }) {
 
     It will be replaced by a different function when the frontend is connected to the backend.
   */
-  const isDeleting = false;
-  const deleteQRCode = () => console.log("delete");
+ // const isDeleting = false;
+//  const deleteQRCode = () => console.log("delete");
+const [isDeleting, setIsDeleting] = useState(false);
+const deleteQRCode = useCallback(async () => {
+  reset();
+  /* The isDeleting state disables the download button and the delete QR code button to show the merchant that an action is in progress */
+  setIsDeleting(true);
+  const response = await fetch(`/api/qrcodes/${QRCode.id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (response.ok) {
+    navigate(`/`);
+  }
+}, [QRCode]);
+
+
+
 
   /*
     This function runs when a user clicks the "Go to destination" button.
@@ -179,8 +274,41 @@ export function QRCodeForm({ QRCode: InitialQRCode }) {
 
     For now, it contains only the default value.
   */
-  const isLoadingDiscounts = true;
-  const discountOptions = [NO_DISCOUNT_OPTION];
+  //const isLoadingDiscounts = true;
+ // const discountOptions = [NO_DISCOUNT_OPTION];
+
+ const {
+  data: discounts,
+  isLoading: isLoadingDiscounts,
+  isError: discountsError,
+  /* useShopifyQuery makes a query to `/api/graphql`, which the backend authenticates before proxying it to the Shopify GraphQL Admin API */
+} = useShopifyQuery({
+  key: "discounts",
+  query: DISCOUNTS_QUERY,
+  variables: {
+    first: 25,
+  },
+});
+
+/*
+  This array is used in a select field in the form to manage discount options
+*/
+const discountOptions = discounts
+  ? [
+      NO_DISCOUNT_OPTION,
+      ...discounts.data.codeDiscountNodes.edges.map(
+        ({ node: { id, codeDiscount } }) => {
+          DISCOUNT_CODES[id] = codeDiscount.codes.edges[0].node.code;
+
+          return {
+            label: codeDiscount.codes.edges[0].node.code,
+            value: id,
+          };
+        }
+      ),
+    ]
+  : [];
+
 
   /*
     These variables are used to display product images, and will be populated when image URLs can be retrieved from the Admin.
