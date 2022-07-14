@@ -1,16 +1,68 @@
-import { useNavigate, TitleBar, Loading } from "@shopify/app-bridge-react";
+import { useNavigate, TitleBar, Loading , ResourcePicker  } from "@shopify/app-bridge-react";
+//import { getSessionToken } from "@shopify/app-bridge-utils";
+// import { Shopify } from "@shopify/shopify-api";
 import { QRCodeIndex } from "../components";
 import { useAppQuery } from "../hooks";
-
-import {
+ import {
   Card,
   EmptyState,
   Layout,
   Page,
   SkeletonBodyText,
 } from "@shopify/polaris";
+import { useEffect, useState } from "react";
+
+
+
+const {  API_KEY , API_SECRET_KEY} = process.env ;
 
 export default function HomePage() {
+
+let [link, setLink] = useState('');
+
+useEffect(() => {
+  link = window.location.href.match(/host=.{1,}\&l/g);
+  link = link[0]?.substring(5,link[0].length -2)
+  setLink(link);
+ console.log("useeffect")
+//   const fetchSession = async () => {
+//     const session = await Shopify.Utils.loadCurrentSession(req, res);
+//     console.log(session) ;
+//   }
+//  fetchSession().catch( err => console.log(err + 'Things just got out of hand '))
+}, []);
+
+
+function tryy(){
+  // const permissionUrl = `https://${link}/admin/oauth/authorize?client_id=a1c5e0379b261bf1e83b68bee09baf1c&scope=read_products,read_content&redirect_uri=https://www.google.com`;
+
+
+  // if (isShopifyEmbedded()) {
+  //   const app = createApp({
+  //     apiKey: "a1c5e0379b261bf1e83b68bee09baf1c",
+  //     host : link
+  //   });
+     console.log('e se  block')
+  //   Redirect.create(app).dispatch(Redirect.Action.REMOTE, permissionUrl);
+  // }else {
+  //   console.log('else block')
+  //   window.location.assign(permissionUrl);
+  // }
+
+  const app = createApp({
+        apiKey: "a1c5e0379b261bf1e83b68bee09baf1c",
+        host : link
+      });
+
+  app.dispatch(
+    Redirect.toRemote({
+      url: 'https://www.google.com'
+    })
+  );
+
+}
+
+
   /*
     Add an App Bridge useNavigate hook to set up the navigate function.
     This function modifies the top-level browser URL so that you can
@@ -109,6 +161,40 @@ const qrCodesMarkup = QRCodes?.length ? (
     Use Polaris Page and TitleBar components to create the page layout,
     and include the empty state contents set above.
   */
+ const [modal , setModal ] = useState({open :false})
+
+ const config = {apiKey: 'a1c5e0379b261bf1e83b68bee09baf1c', host: link };
+
+ async function onload(){
+  // console.log("sei qui ");
+  // const session = await Shopify.Utils.loadCurrentSession(
+  //   req,
+  //   res
+  // );
+  // const client = new Shopify.Clients.Graphql(
+  //   session.shop,
+  //   session.accessToken
+  // );
+
+  // const query = `
+  // query{
+  //   products(first:3){
+  //    edges{
+  //      nodes {
+  //        id
+  //      }
+  //    }
+  //  }
+  //  }` ;
+  // const response = await client.query({data: `${query}`});
+  //   return response;
+
+  // const sessionToken = await getSessionToken(app);
+  // const data = sessionToken
+  //               .then(res => res.json())
+  //               .then( data => console.log(data)) ;
+ }
+
   return (
     <Page>
       <TitleBar
@@ -118,11 +204,21 @@ const qrCodesMarkup = QRCodes?.length ? (
           onAction: () => navigate("/qrcodes/new"),
         }}
       />
+      <ResourcePicker
+       resourceType="product"
+       showVariants={false}
+        open = {modal.open}
+        onCancel ={() => setModal({open :true})}
+      />
       <Layout>
         <Layout.Section>
           {loadingMarkup}
           {qrCodesMarkup}
           {emptyStateMarkup}
+          {/* { onload() } */}
+          { link}
+          {  API_KEY }
+          {/* { tryy() } */}
         </Layout.Section>
       </Layout>
     </Page>
